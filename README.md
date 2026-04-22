@@ -1,11 +1,37 @@
-Project Overview
+Smart Aquarium Controller (ESP32) 
 
-The Smart Aquarium Controller V1 is an ESP32-based IoT-enabled system designed to automate home aquariums with both local and remote control, ensuring fish feeding, pump management, and environmental monitoring.
+An embedded IoT-based aquarium automation system designed for reliability, offline operation, and remote control.
 
-This system was designed with reliability in mind, using dual networking (AP + STA), non-blocking timers, and cloud control for remote operations.
+Key Highlights
+- Works without internet (local automation)
+- Temporary AP mode for debugging & setup
+- IoT Cloud control (relay only)
+- Fully non-blocking system
+- Smart pump automation cycle
+- Automatic fish feeding system
 
-It is V1 because it demonstrates full functionality but has some limitations in long-term stability and cloud resilience.
+--
 
+Problem Statement
+
+Aquarium owners often:
+- Forget to feed fish regularly
+- Run filters continuously (wasting power)
+- Lack remote control when away
+- Cannot monitor system status easily
+
+This project solves these issues using an ESP32-based automation system.
+
+--
+
+🧠 Design Decisions
+
+- Cloud is used only for control, not logic → improves reliability
+- Local timers ensure system works without internet
+- Temporary AP mode avoids permanent hotspot issues
+- Non-blocking code ensures smooth operation
+
+--
 
 Core Features
 
@@ -21,6 +47,7 @@ Core Features
 | NTP time sync                 | Ensures scheduling uses IST                       | Force timezone manually; cloud does not override                               |
 | AP/Web API                    | Manage Wi-Fi, feed, relay, pump, schedule         | JSON responses, fully readable by browsers or apps                             |
 
+--
 
 Hardware Pinout
 
@@ -35,6 +62,7 @@ Hardware Pinout
 | Activity LED      | 16  | Optional feedback                      |
 | AP trigger button | 33  | Physical push button for temporary AP  |
 
+--
 
 System Architecture
 
@@ -76,7 +104,93 @@ LED Feedback
     * Wi-Fi connecting → slow blink
     * All good → solid ON
 
- Known Issues (V1)
+--
+
+Initial Setup Guide (First Time Use)
+
+When the device is powered ON for the first time (or after WiFi reset), it automatically starts in **Access Point (AP) mode**.
+
+Step 1: Connect to ESP32 Setup Network
+
+* Open WiFi settings on your phone/laptop
+* Connect to:
+
+  SSID: ESP32_Setup
+  Password: (leave empty if not set)
+
+Step 2: Open Setup Page
+
+* Open browser and go to:
+
+  http://192.168.4.1
+  
+* You will see the WiFi configuration page
+
+
+Step 3: Enter Your WiFi Credentials
+
+* Enter your:
+
+  * WiFi SSID
+  * WiFi Password
+    
+* Click Save & Reboot
+
+
+Step 4: Device Reboots & Connects
+
+* ESP32 will restart
+* It will try to connect to your WiFi network
+* If successful:
+
+  * AP mode turns OFF
+  * Dashboard becomes available
+
+Step 5: Access Dashboard (STA Mode)
+
+After successful WiFi connection, the ESP32 dashboard can be accessed using its IP address.
+
+  How to Find ESP32 IP
+
+* Check Serial Monitor logs
+
+  WiFi connected, IP: 192.168.x.x
+
+OR
+
+* Check your router’s **connected devices list**
+
+Alternate Method (Recommended)
+
+If you cannot find the IP:
+
+* Press the AP Button
+* ESP32 will start temporary AP mode (120 seconds)
+
+Then:
+
+1. Connect to:
+
+   ESP32_Setup
+2. Open:
+
+   http://192.168.4.1/
+
+👉 This will show the current STA IP address
+
+Open Dashboard
+
+Once you have the IP:
+http://<ESP32_IP>
+
+Example:
+http://192.168.29.46
+
+This method avoids needing router access and makes debugging easier.
+
+--
+
+Known Issues (V1)
 
 1. Web Dashboard Access
 
@@ -106,7 +220,9 @@ LED Feedback
    * Long uptimes can accumulate heap fragmentation
    * Potential crash if memory runs low (no watchdog yet)
 
- Future Improvements 
+--
+
+Future Improvements 
 
 * Auto-reconnect cloud + OTA updates
 * Mobile app for Android/iOS (Home Assistant integration)
@@ -115,7 +231,9 @@ LED Feedback
 * Enhanced dashboard responsiveness
 * Watchdog for auto recovery
 
- Getting Started
+--
+
+Getting Started
 
 1. Flash Firmware
 
@@ -138,12 +256,16 @@ LED Feedback
    * Use Arduino Cloud Device ID + Key in firmware
    * Only relay ON/OFF supported
 
+--
+
 Logs Example
 
 * [10:45:00] Pump auto toggled by timer -> ON
 * [10:45:00] Relay 2 ON
 * [10:00:11] Feeding completed at 11 Feb 10:00:11
 * [10:00:00] Feed requested but already feeding (Schedule AM)
+
+--
 
 Notes 
 
