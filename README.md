@@ -1,278 +1,215 @@
-Smart Aquarium Controller (ESP32) 
+# 🐟 Smart Aquarium Controller (ESP32) — V1
 
-An embedded IoT-based aquarium automation system designed for reliability, offline operation, and remote control.
+![ESP32](https://img.shields.io/badge/ESP32-IoT-blue)
+![Version](https://img.shields.io/badge/version-v1.0-green)
+![Status](https://img.shields.io/badge/status-stable-orange)
+![License](https://img.shields.io/badge/license-MIT-yellow)
 
-Key Highlights
-- Works without internet (local automation)
-- Temporary AP mode for debugging & setup
-- IoT Cloud control (relay only)
-- Fully non-blocking system
-- Smart pump automation cycle
-- Automatic fish feeding system
+An **ESP32-based Smart Aquarium Automation System** designed for reliability, offline operation, and remote control.
 
---
+---
 
-Problem Statement
+##  What is this?
 
-Aquarium owners often:
-- Forget to feed fish regularly
-- Run filters continuously (wasting power)
-- Lack remote control when away
-- Cannot monitor system status easily
+This system automates essential aquarium tasks:
 
-This project solves these issues using an ESP32-based automation system.
+*  Automatic fish feeding
+*  Smart pump ON/OFF cycle
+*  Multi-relay control (lights, devices)
+*  Local web dashboard
+*  Remote control via Arduino IoT Cloud
 
---
+ Designed to **work even without internet**
 
-🧠 Design Decisions
+---
 
-- Cloud is used only for control, not logic → improves reliability
-- Local timers ensure system works without internet
-- Temporary AP mode avoids permanent hotspot issues
-- Non-blocking code ensures smooth operation
+##  Key Features
 
---
+*  Fully **non-blocking system**
+*  **Scheduled feeding** (NTP synced IST time)
+*  **Pump automation timer (ON/OFF loop)**
+*  **Temporary AP mode for setup & debugging**
+*  **Async web dashboard (fast + responsive)**
+*  **Cloud control (relay only, safe design)**
+*  **Status LED feedback system**
+*  Preferences storage (no reconfiguration needed)
 
-Core Features
+---
 
-| Feature                       | Purpose                                           | Technical Notes                                                                |
-| ----------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Web dashboard (AsyncServer)   | Control relays, pumps, and feeding schedule       | Uses `ESPAsyncWebServer`; responsive on most browsers                          |
-| Temporary AP mode             | Configure Wi-Fi and check STA IP                  | Activated via **physical button** or **Serial command**, duration configurable |
-| Pump automation               | Cycle ON/OFF for water pump                       | Non-blocking, uses `millis()`, adjustable timer through web                    |
-| Fish feeder automation        | Scheduled AM/PM feed                              | Servo controlled, avoids overlapping feeding requests                          |
-| Arduino IoT Cloud integration | Remote ON/OFF control for 4 relays                | Cloud handles only relay state, not scheduling                                 |
-| LED indicators                | System status, cloud connection, AP mode, feeding | Dual LED: blue for cloud, yellow/green for status                              |
-| Logging                       | Maintain last 120 logs                            | Includes timestamps (IST) and action type                                      |
-| NTP time sync                 | Ensures scheduling uses IST                       | Force timezone manually; cloud does not override                               |
-| AP/Web API                    | Manage Wi-Fi, feed, relay, pump, schedule         | JSON responses, fully readable by browsers or apps                             |
+##  Unique Feature — Temporary AP Mode
 
---
+Unlike typical IoT devices:
 
-Hardware Pinout
+* Press button → AP starts for 120 seconds
+* Connect to `ESP32_Setup`
+* Check device IP or reconfigure WiFi
 
-| Component         | Pin | Description                            |
-| ----------------- | --- | -------------------------------------- |
-| Relay 1           | 26  | Aquarium light                         |
-| Relay 2           | 27  | Filter pump (auto ON/OFF)              |
-| Relay 3           | 14  | Decorative light                       |
-| Relay 4           | 12  | Room light                             |
-| Servo             | 13  | Fish feeder servo                      |
-| Status LED        | 17  | Shows cloud, feeding, AP, Wi-Fi status |
-| Activity LED      | 16  | Optional feedback                      |
-| AP trigger button | 33  | Physical push button for temporary AP  |
+ No need to access router or guess IP
+ Makes debugging extremely easy
 
---
+---
 
-System Architecture
+##  System Architecture
 
- Networking
+```
+        [User / Mobile]
+               │
+     ┌─────────▼─────────┐
+     │  Web Dashboard    │
+     └─────────┬─────────┘
+               │
+        ┌──────▼──────┐
+        │   ESP32     │
+        │  Controller │
+        └──────┬──────┘
+               │
+     ┌─────────┼─────────┐
+     │         │         │
+ [Relays]   [Servo]   [Timers]
+               │
+        [Fish Feeder]
 
-  * STA mode: Primary Wi-Fi, serves async web dashboard
-  * Temporary AP mode: Only activated on button/serial command or Wi-Fi failure, serves synchronous setup page
-  * AP can return STA IP for user reference
+               │
+        (Optional)
+               ▼
+       Arduino IoT Cloud
+```
 
- Cloud
+---
 
-  * Uses Arduino IoT Cloud for remote relay control
-  * Handles 4 relays only (filter, lights)
-  * Cloud disconnect/reconnect handled with callbacks
+##  Pin Configuration
 
- Timers
+| Component       | GPIO |
+| --------------- | ---- |
+| Relay 1 (Light) | 26   |
+| Relay 2 (Pump)  | 27   |
+| Relay 3         | 14   |
+| Relay 4         | 12   |
+| Servo (Feeder)  | 13   |
+| Status LED 1    | 17   |
+| Status LED 2    | 16   |
+| AP Button       | 33   |
 
-  * Non-blocking pump cycle (`millis()`)
-  * Scheduled AM/PM feeding using NTP + local IST time
-  * Prevents overlapping feeding via `feedingNow` flag
+---
 
- Logging
+##  Status LED Behavior
 
-  * Rolling buffer (max 120 entries)
-  * Logs every significant event:
+| Condition          | LED Behavior |
+| ------------------ | ------------ |
+| Normal (all OK)    | Solid ON     |
+| WiFi connecting    | Slow blink   |
+| AP mode active     | Fast blink   |
+| Feeding            | Quick blink  |
+| Cloud disconnected | Rapid blink  |
 
-    * Relay state change
-    * Feeding start/end
-    * Pump auto toggle
-    * Wi-Fi/connectivity events
+---
 
-LED Feedback
+##  Initial Setup Guide
 
-  * Status LED flashes differently depending on:
+###  Step 1: Connect to ESP32
 
-    * Cloud disconnected → rapid blink
-    * AP active → fast blink
-    * Feeding → quick blink
-    * Wi-Fi connecting → slow blink
-    * All good → solid ON
+* Connect to WiFi:
 
---
+```
+ESP32_Setup
+```
 
-Initial Setup Guide (First Time Use)
+---
 
-When the device is powered ON for the first time (or after WiFi reset), it automatically starts in **Access Point (AP) mode**.
+###  Step 2: Open Setup Page
 
-Step 1: Connect to ESP32 Setup Network
+```
+http://192.168.4.1
+```
 
-* Open WiFi settings on your phone/laptop
-* Connect to:
+---
 
-  SSID: ESP32_Setup
-  Password: (leave empty if not set)
+###  Step 3: Enter WiFi Credentials
 
-Step 2: Open Setup Page
+* Enter SSID & Password
+* Click **Save & Reboot**
 
-* Open browser and go to:
+---
 
-  http://192.168.4.1
-  
-* You will see the WiFi configuration page
+###  Step 4: Device Connects
 
+* ESP32 connects to your WiFi
+* AP mode turns OFF
 
-Step 3: Enter Your WiFi Credentials
+---
 
-* Enter your:
+###  Step 5: Access Dashboard
 
-  * WiFi SSID
-  * WiFi Password
-    
-* Click Save & Reboot
+#### Find IP:
 
+* Serial Monitor
+  **OR**
+* Router device list
 
-Step 4: Device Reboots & Connects
+---
 
-* ESP32 will restart
-* It will try to connect to your WiFi network
-* If successful:
+###  Alternate Method (Recommended)
 
-  * AP mode turns OFF
-  * Dashboard becomes available
+* Press **AP Button**
+* Connect to `ESP32_Setup`
+* Open:
 
-Step 5: Access Dashboard (STA Mode)
+```
+http://192.168.4.1/sta
+```
 
-After successful WiFi connection, the ESP32 dashboard can be accessed using its IP address.
+ Shows current ESP32 IP
 
-  How to Find ESP32 IP
+---
 
-* Check Serial Monitor logs
+###  Open Dashboard
 
-  WiFi connected, IP: 192.168.x.x
-
-OR
-
-* Check your router’s **connected devices list**
-
-Alternate Method (Recommended)
-
-If you cannot find the IP:
-
-* Press the AP Button
-* ESP32 will start temporary AP mode (120 seconds)
-
-Then:
-
-1. Connect to:
-
-   ESP32_Setup
-2. Open:
-
-   http://192.168.4.1/
-
-👉 This will show the current STA IP address
-
-Open Dashboard
-
-Once you have the IP:
+```
 http://<ESP32_IP>
+```
 
-Example:
-http://192.168.29.46
+---
 
-This method avoids needing router access and makes debugging easier.
+##  Design Philosophy
 
---
+* Cloud is used **only for control**
+* Core logic runs locally
+* System works even if internet fails
 
-Known Issues (V1)
+---
 
-1. Web Dashboard Access
+##  Known Issues 
 
-   * After long runtime, page may not load in browser
-   * Works immediately after restart
-   * Cause: Possible AsyncServer memory leak / ESP32 heap fragmentation
+* Web dashboard may stop responding after long uptime
+* Arduino IoT Cloud may fail to reconnect after router reboot
+* ESP32 boots faster than router → cloud fails
+* Manual restart may be required
 
-2. Arduino Cloud
+---
 
-   * Cloud occasionally disconnects
-   * Does not auto-reconnect in some scenarios
-   * After router boot delay, cloud may not connect until ESP32 restart
+##  Known Behavior
 
-3. Power / Router Boot Sequence
+* Multiple schedule triggers may occur within the same second
+* Feeding logic prevents duplicate execution safely
 
-   * Power cut → ESP32 boots faster than router
-   * Cloud fails to sync because NTP + TLS connection fails
-   * Temporary AP needed for Wi-Fi/STA troubleshooting
+---
 
-4. Pump Timer
+##  Future Improvements 
 
-   * If pump is manually toggled during timer, timer cycle resets
-   * Countdown displays are accurate but LED indicators can blink rapidly
+*  Mobile App (Home Assistant / Flutter)
+*  OTA updates
+*  Auto cloud reconnect system
+*  Multi-user access
+*  Sensor integration
 
-5. Memory / Stability
+---
 
-   * Long uptimes can accumulate heap fragmentation
-   * Potential crash if memory runs low (no watchdog yet)
+##  Philosophy
 
---
+> “Designed to work even when the internet doesn’t.”
 
-Future Improvements 
+---
 
-* Auto-reconnect cloud + OTA updates
-* Mobile app for Android/iOS (Home Assistant integration)
-* Multi-user system + access control
-* Temperature / water quality sensor integration
-* Enhanced dashboard responsiveness
-* Watchdog for auto recovery
+##  License
 
---
-
-Getting Started
-
-1. Flash Firmware
-
-   * Use Arduino IDE or PlatformIO
-   * ESP32 DevKit (38-pin)
-
-2. Upload Web Dashboard
-
-   * SPIFFS / LittleFS filesystem
-   * Place `index.html` under `/data`
-
-3. Initial Setup
-
-   * Connect button to GPIO33
-   * Press button to start temporary AP for Wi-Fi setup
-   * Access AP at `192.168.4.1`
-
-4. Cloud Setup
-
-   * Use Arduino Cloud Device ID + Key in firmware
-   * Only relay ON/OFF supported
-
---
-
-Logs Example
-
-* [10:45:00] Pump auto toggled by timer -> ON
-* [10:45:00] Relay 2 ON
-* [10:00:11] Feeding completed at 11 Feb 10:00:11
-* [10:00:00] Feed requested but already feeding (Schedule AM)
-
---
-
-Notes 
-
-* Button-triggered temporary AP allows STA IP inspection
-* Dual server design ensures AP + web dashboard run independently
-* Cloud control is optional; system works fully locally
-* LED behavior allows rapid status assessment
-* `millis()`-based timers prevent blocking main loop
-
-
+MIT License
