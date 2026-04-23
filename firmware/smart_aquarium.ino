@@ -99,8 +99,8 @@ unsigned long lastButtonChange = 0;
 
 /* Arduino IoT Cloud variables (control-only) */
 /* Replace these with your Arduino Cloud values */
-const char DEVICE_LOGIN_NAME[]  = "6575b0ea-3934-4fa9-adac-4f2a7bca6359";
-const char DEVICE_KEY[]         = "vqUQx@xL#cjFru3QDz2Bl16qr";
+const char DEVICE_LOGIN_NAME[]  = "//////////////////////////";
+const char DEVICE_KEY[]         = "//////////////////////////";
 
 /* ===== ARDUINO IOT CLOUD VARIABLES ===== */
 CloudSwitch filter;   // Relay 2 (Pump)
