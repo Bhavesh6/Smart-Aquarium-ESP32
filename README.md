@@ -1,4 +1,4 @@
-# 🐟 Smart Aquarium Controller (ESP32) — V1
+# 🐟 Smart Aquarium Controller (ESP32) 
 
 ![ESP32](https://img.shields.io/badge/ESP32-IoT-blue)
 ![Version](https://img.shields.io/badge/version-v1.0-green)
@@ -218,6 +218,79 @@ http://<ESP32_IP>
 
 * Multiple schedule triggers may occur within the same second
 * Feeding logic prevents duplicate execution safely
+
+---
+
+##  Smart WiFi Recovery & Fallback System
+
+The system is designed to handle real-world network failures automatically.
+
+###  Auto Reconnect Logic
+
+* If WiFi disconnects:
+
+  * ESP32 continuously attempts reconnection
+  * No manual restart required
+
+---
+
+### 📡 Automatic Fallback AP Mode
+
+If reconnection fails:
+
+* ESP32 starts **temporary AP mode**
+* User can:
+
+  * Access dashboard
+  * Reconfigure WiFi
+  * Check system status
+
+---
+
+###  Use Case: WiFi Password Changed
+
+If router credentials are changed:
+
+1. ESP32 fails to reconnect
+2. Automatically enables AP mode
+3. User connects to:
+
+   ```
+   ESP32_Setup
+   ```
+4. Opens:
+
+   ```
+   http://192.168.4.1
+   ```
+5. Enters new WiFi credentials
+
+ System recovers without reflashing firmware
+
+---
+
+###  Hybrid Mode Behavior
+
+* While connected to WiFi → Normal STA mode
+* On failure → AP fallback activates
+* User can manually trigger AP anytime (button / serial)
+
+---
+
+###  Why This Matters
+
+Most IoT systems:
+
+* Fail silently on WiFi issues
+* Require manual reset or reprogramming
+
+This system:
+
+* Detects failure
+* Recovers automatically
+* Provides user access via AP
+
+ Makes the system **robust and user-friendly**
 
 ---
 
