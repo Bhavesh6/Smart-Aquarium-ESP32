@@ -74,7 +74,15 @@ Unlike typical IoT devices:
                ▼
        Arduino IoT Cloud
 ```
+---
+##  Hardware Used
 
+- ESP32 Dev Board (38-pin)
+- 4-Channel Relay Module
+- Servo Motor (MG996R)
+- Push Button (AP Mode Trigger)
+- Status LEDs (2x)
+- Power Supply (12V + Buck Converter)
 ---
 
 ##  Pin Configuration
@@ -101,6 +109,25 @@ Unlike typical IoT devices:
 | AP mode active     | Fast blink   |
 | Feeding            | Quick blink  |
 | Cloud disconnected | Rapid blink  |
+
+---
+##  Wiring Overview
+
+- Relays are active LOW
+- Servo connected to GPIO 13
+- Button uses INPUT_PULLUP (connect to GND when pressed)
+- LED uses resistor (220Ω recommended)
+
+---
+
+##  Fault Handling
+
+System is designed to handle failures:
+
+- WiFi loss → auto reconnect attempt
+- Router delay → retry logic
+- Cloud failure → local system continues
+- Feeding protected from duplicate triggers
 
 ---
 
