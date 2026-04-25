@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/ESP32-IoT-blue?style=for-the-badge&logo=espressif">
-  <img src="https://img.shields.io/badge/Version-v2.0-green?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-v1.0.1-green?style=for-the-badge">
   <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge">
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge">
   <img src="https://img.shields.io/badge/Dashboard-Web%20UI-cyan?style=for-the-badge">
@@ -42,6 +42,7 @@
 - [Preferences Storage](#preferences-storage)
 - [Known Behavior & Limitations](#known-behavior--limitations)
 - [Future Improvements](#future-improvements)
+- [Release Notes](#release-notes)
 
 ---
 
@@ -552,6 +553,43 @@ To factory reset all preferences: use the **Reset WiFi** button in Settings (cle
 
 ---
 
+ 
+## Release Notes
+ 
+### v1.0.1 — Current Release
+ 
+**New Features:**
+- Missed feeding recovery — detects and recovers missed scheduled feeds on reboot
+- Feed cooldown (30 min) — prevents duplicate feed when manual + scheduled overlap
+- Cloud watchdog — auto-reboots if cloud stays disconnected >5 min while WiFi is fine
+- Relay state persistence — all relay states saved and restored across reboots/power cuts
+- Completely redesigned web dashboard — mobile-first app layout with bottom nav, toggle switches, signal bars, toast notifications
+**Bug Fixes:**
+- Fixed duplicate async route registration — was causing dashboard to freeze after long uptime or WiFi reconnect
+- Fixed `delay()` in async handlers — `/setWiFi`, `/resetWiFi`, `/reboot` now use `pendingReboot` flag so HTTP response sends cleanly before restart
+- Fixed schedule firing hundreds of times per second — `lastFedMinute` guard now ensures exactly one trigger per scheduled minute
+- Fixed schedule input validation — invalid hour/minute values now rejected with HTTP 400
+- Fixed pin table in README — Relay 2 is GPIO 25, Relay 3 is GPIO 27, Relay 4 is GPIO 14 (was wrong in v1.0)
+**Known Issues Resolved:**
+- Web dashboard stopping after long uptime → fixed (duplicate handler registration)
+- Arduino IoT Cloud failing to reconnect after router reboot → fixed (cloud watchdog)
+- Manual restart required after cloud disconnect → fixed (watchdog auto-reboots)
+  
+---
+ 
+### v1.0.0 — Initial Release
+ 
+- Basic ESP32 aquarium controller
+- Async web dashboard (SPIFFS hosted)
+- 4-relay control
+- Servo fish feeder with scheduling
+- Pump auto-timer
+- AP mode setup portal
+- Arduino IoT Cloud relay control
+- Temporary AP mode via button
+- NTP time sync (IST)
+- Dual LED status system
+- System activity log
 
 ## License
 
