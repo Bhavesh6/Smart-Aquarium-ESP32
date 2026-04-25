@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AquaControl</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:       #0c0c10;
+  --bg2:      #111118;
+  --surface:  #17171f;
+  --surface2: #1e1e28;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+  --accent:   #22d3ee;
+  --accent2:  #06b6d4;
+  --green:    #10b981;
+  --amber:    #f59e0b;
+  --red:      #ef4444;
+  --text1:    #f1f1f5;
+  --text2:    #9494a8;
+  --text3:    #55556a;
+  --navh:     68px;
+}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:'DM Sans',sans-serif;
+  background:var(--bg);
+  color:var(--text1);
+  display:flex;flex-direction:column;
+  max-width:430px;margin:0 auto;
+}
+#scroll{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  padding-bottom:calc(var(--navh) + 16px);
+  scroll-behavior:smooth;
+}
+#scroll::-webkit-scrollbar{display:none}
+
+/* Topbar */
+.topbar{
+  position:sticky;top:0;z-index:10;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 20px 12px;
+  background:linear-gradient(to bottom,var(--bg) 60%,transparent);
+}
+.topbar-title{
+  font-family:'Syne',sans-serif;
+  font-size:22px;font-weight:800;letter-spacing:-0.5px;
+}
+.topbar-title span{color:var(--accent)}
+.pill{
+  display:flex;align-items:center;gap:6px;
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:20px;padding:5px 10px 5px 7px;
+  font-size:11px;font-weight:500;color:var(--text2);
+}
+.dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--green);
+  animation:breathe 2.5s ease-in-out infinite;
+}
+.dot.off{background:var(--red);animation:none}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 2px rgba(16,185,129,.25)}50%{box-shadow:0 0 0 4px rgba(16,185,129,.1)}}
+
+/* Tabs */
+.tab{display:none;padding:0 16px;animation:up .22s ease}
+.tab.active{display:block}
+@keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* Section label */
+.slabel{
+  font-size:11px;font-weight:600;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--text3);
+  margin:20px 4px 10px;
+}
+
+/* Cards */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:20px;padding:20px;margin-bottom:12px;
+  position:relative;overflow:hidden;
+}
+
+/* Clock card */
+.clock-card{
+  background:linear-gradient(145deg,#14141e,#0e0e16);
+  border:1px solid rgba(34,211,238,.15);
+  border-radius:24px;padding:28px 20px;
+  text-align:center;margin-bottom:12px;overflow:hidden;position:relative;
+}
+.clock-card::before{
+  content:'';position:absolute;top:-60px;left:50%;transform:translateX(-50%);
+  width:200px;height:120px;
+  background:radial-gradient(ellipse,rgba(34,211,238,.08),transparent 70%);
+  pointer-events:none;
+}
+.clock-time{
+  font-family:'Syne',sans-serif;
+  font-size:54px;font-weight:800;letter-spacing:-2px;
+  color:var(--text1);line-height:1;
+}
+.clock-sub{font-size:12px;color:var(--text3);margin-top:6px}
+
+/* Net grid */
+.net-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.nlabel{font-size:11px;color:var(--text3);margin-bottom:3px;font-weight:500}
+.nval{font-size:14px;font-weight:500;color:var(--text1)}
+.nval.a{color:var(--accent)}
+
+/* Sig bars */
+.sig{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+.sig span{width:3px;border-radius:2px;background:var(--surface2)}
+.sig span:nth-child(1){height:4px}
+.sig span:nth-child(2){height:7px}
+.sig span:nth-child(3){height:10px}
+.sig span:nth-child(4){height:14px}
+.sig.s4 span{background:var(--green)}
+.sig.s3 span:nth-child(-n+3){background:var(--green)}
+.sig.s2 span:nth-child(-n+2){background:var(--amber)}
+.sig.s1 span:nth-child(1){background:var(--red)}
+
+/* Schedule */
+.sched-row{display:flex;gap:10px}
+.sched-block{
+  flex:1;background:var(--surface2);
+  border:1px solid var(--border);border-radius:14px;padding:14px;
+}
+.stag{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.sval{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;letter-spacing:-.5px}
+
+/* Last feed */
+.lf-val{font-size:16px;font-weight:500;margin:4px 0 16px}
+
+/* Feed button */
+.btn-feed{
+  width:100%;padding:15px;
+  background:linear-gradient(135deg,var(--accent2),#0891b2);
+  border:none;border-radius:14px;
+  font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:#000;
+  cursor:pointer;letter-spacing:.2px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:opacity .15s,transform .1s;
+}
+.btn-feed:active{opacity:.85;transform:scale(.98)}
+
+/* Device grid */
+.dev-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.dev{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:18px;padding:16px 14px;
+  display:flex;flex-direction:column;gap:10px;
+  transition:border-color .25s,box-shadow .25s;
+}
+.dev.on{
+  border-color:rgba(34,211,238,.3);
+  box-shadow:0 0 0 1px rgba(34,211,238,.07),inset 0 0 30px rgba(34,211,238,.03);
+}
+.dev-top{display:flex;align-items:flex-start;justify-content:space-between}
+.dev-ico{
+  width:40px;height:40px;border-radius:12px;
+  background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;transition:background .25s;
+}
+.dev.on .dev-ico{background:rgba(34,211,238,.1)}
+.dev-name{font-size:12px;font-weight:500;color:var(--text2)}
+.dev-st{font-size:11px;font-weight:600;color:var(--text3);margin-top:2px}
+.dev.on .dev-st{color:var(--accent)}
+
+/* Toggle switch */
+.sw{position:relative;width:38px;height:22px;flex-shrink:0;cursor:pointer}
+.sw input{opacity:0;width:0;height:0}
+.sw-t{
+  position:absolute;inset:0;border-radius:22px;
+  background:var(--surface2);border:1px solid var(--border2);
+  transition:.25s;cursor:pointer;
+}
+.sw-k{
+  position:absolute;width:16px;height:16px;
+  background:#fff;border-radius:50%;
+  top:2px;left:2px;transition:.25s;
+  box-shadow:0 1px 4px rgba(0,0,0,.4);
+}
+.sw input:checked ~ .sw-t{background:var(--accent2);border-color:var(--accent2)}
+.sw input:checked ~ .sw-k{transform:translateX(16px)}
+
+/* Pump spin */
+.spin{animation:spin 1.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Logs */
+.log-list{list-style:none;display:flex;flex-direction:column;gap:4px;max-height:420px;overflow-y:auto}
+.log-list::-webkit-scrollbar{width:3px}
+.log-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.log-item{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 12px;background:var(--surface2);
+  border-radius:10px;font-size:12px;line-height:1.5;color:var(--text2);
+}
+.log-item:first-child .ldot{background:var(--accent)}
+.ldot{width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0;margin-top:5px}
+
+/* Settings inputs */
+.field{margin-bottom:16px}
+.flabel{font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+input[type="number"],input[type="text"],input[type="password"]{
+  font-family:'DM Sans',sans-serif;font-size:15px;
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:12px;color:var(--text1);padding:12px 14px;outline:none;
+  transition:border-color .2s,box-shadow .2s;width:100%;
+}
+input[type="number"]{width:80px;text-align:center}
+input:focus{border-color:rgba(34,211,238,.4);box-shadow:0 0 0 3px rgba(34,211,238,.06)}
+.time-row{display:flex;align-items:center;gap:8px}
+.tsep{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--text3)}
+
+/* Buttons */
+.btn{
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;
+  padding:12px 18px;border-radius:12px;border:none;
+  cursor:pointer;transition:opacity .15s,transform .1s;letter-spacing:.2px;
+}
+.btn:active{opacity:.8;transform:scale(.97)}
+.btn-primary{background:linear-gradient(135deg,var(--accent2),#0891b2);color:#000;width:100%;padding:14px;font-size:14px;border-radius:14px}
+.btn-danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--red);flex:1}
+.btn-warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);color:var(--amber);flex:1}
+.btn-row{display:flex;gap:10px}
+
+/* Auto row */
+.auto-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:14px;margin-bottom:14px;
+}
+.auto-label{font-size:14px;font-weight:500}
+.auto-sub{font-size:11px;color:var(--text3);margin-top:2px}
+
+/* Pump switch */
+.psw{position:relative;width:46px;height:26px;flex-shrink:0}
+.psw input{opacity:0;width:0;height:0}
+.psw-t{position:absolute;inset:0;border-radius:26px;background:var(--surface);border:1px solid var(--border2);cursor:pointer;transition:.25s}
+.psw-k{position:absolute;width:20px;height:20px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.25s;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.psw input:checked ~ .psw-t{background:var(--accent2);border-color:var(--accent2)}
+.psw input:checked ~ .psw-k{transform:translateX(20px)}
+
+/* Countdown */
+.cd{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.15);
+  border-radius:10px;padding:8px 12px;
+  font-size:13px;font-weight:500;color:var(--accent);margin-bottom:14px;
+}
+
+/* Nav */
+nav{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:430px;height:var(--navh);
+  background:rgba(12,12,16,.95);backdrop-filter:blur(24px);
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-around;
+  z-index:100;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.nbtn{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 20px;border:none;background:none;
+  cursor:pointer;color:var(--text3);transition:color .2s;flex:1;
+}
+.nbtn.active{color:var(--accent)}
+.nbtn svg{width:22px;height:22px;stroke-width:1.8}
+.nbtn span{font-size:10px;font-weight:600;letter-spacing:.3px}
+
+/* Toast */
+.toast{
+  position:fixed;bottom:calc(var(--navh) + 14px);left:50%;
+  transform:translateX(-50%) translateY(10px);
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:12px;padding:10px 18px;
+  font-size:13px;font-weight:500;color:var(--text1);
+  opacity:0;transition:all .25s ease;white-space:nowrap;
+  z-index:200;box-shadow:0 4px 24px rgba(0,0,0,.5);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div id="scroll">
+
+  <div class="topbar">
+    <div class="topbar-title">Aqua<span>Control</span></div>
+    <div class="pill">
+      <div class="dot" id="wifiDot"></div>
+      <span id="wifiStatus">Connecting</span>
+    </div>
+  </div>
+
+  <!-- HOME -->
+  <div class="tab active" id="home">
+
+    <div class="clock-card">
+      <div class="clock-time" id="clock">--:--:--</div>
+      <div class="clock-sub">India Standard Time</div>
+    </div>
+
+    <div class="slabel">Network</div>
+    <div class="card">
+      <div class="net-grid">
+        <div><div class="nlabel">Network</div><div class="nval" id="ssid">--</div></div>
+        <div>
+          <div class="nlabel">Signal</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="sig" id="sigBars"><span></span><span></span><span></span><span></span></div>
+            <div class="nval" id="rssi">--</div>
+          </div>
+        </div>
+        <div><div class="nlabel">IP Address</div><div class="nval a" id="wifi">--</div></div>
+      </div>
+    </div>
+
+    <div class="slabel">Feeding</div>
+    <div class="card">
+      <div class="sched-row">
+        <div class="sched-block">
+          <div class="stag">☀ Morning</div>
+          <div class="sval" id="schedAM">--:--</div>
+        </div>
+        <div class="sched-block">
+          <div class="stag">🌙 Night</div>
+          <div class="sval" id="schedPM">--:--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="nlabel" style="margin-bottom:4px">Last Feeding</div>
+      <div class="lf-val" id="lastfeed">--</div>
+      <button class="btn-feed" onclick="feedNow()">🍽&nbsp; Feed Now</button>
+    </div>
+
+  </div>
+
+  <!-- DEVICES -->
+  <div class="tab" id="devices">
+    <div class="slabel">Devices</div>
+    <div class="dev-grid">
+
+      <div class="dev" id="dev1">
+        <div class="dev-top">
+          <div class="dev-ico">🌊</div>
+          <label class="sw">
+            <input type="checkbox" id="sw1" onchange="toggleRelay(1)">
+            <div class="sw-t"></div><div class="sw-k"></div>
+          </label>
+        </div>
+        <div><div class="dev-name">Aquarium Light</div><div class="dev-st" id="r1">Inactive</div></div>
+      </div>
+
+      <div class="dev" id="dev2">
+        <div class="dev-top">
+          <div class="dev-ico"><span id="pumpIcon">🔄</span></div>
+          <label class="sw">
+            <input type="checkbox" id="sw2" onchange="togglePumpManual()">
+            <div class="sw-t"></div><div class="sw-k"></div>
+          </label>
+        </div>
+        <div><div class="dev-name">Filter Pump</div><div class="dev-st" id="r2">Inactive</div></div>
+      </div>
+
+      <div class="dev" id="dev3">
+        <div class="dev-top">
+          <div class="dev-ico">✨</div>
+          <label class="sw">
+            <input type="checkbox" id="sw3" onchange="toggleRelay(3)">
+            <div class="sw-t"></div><div class="sw-k"></div>
+          </label>
+        </div>
+        <div><div class="dev-name">Deco Light</div><div class="dev-st" id="r3">Inactive</div></div>
+      </div>
+
+      <div class="dev" id="dev4">
+        <div class="dev-top">
+          <div class="dev-ico">💡</div>
+          <label class="sw">
+            <input type="checkbox" id="sw4" onchange="toggleRelay(4)">
+            <div class="sw-t"></div><div class="sw-k"></div>
+          </label>
+        </div>
+        <div><div class="dev-name">Room Light</div><div class="dev-st" id="r4">Inactive</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- LOGS -->
+  <div class="tab" id="logs">
+    <div class="slabel">Activity Log</div>
+    <div class="card" style="padding:14px">
+      <ul class="log-list" id="loglist"></ul>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="tab" id="settings">
+
+    <div class="slabel">Schedule</div>
+    <div class="card">
+      <div class="field">
+        <div class="flabel">☀️ Morning Feed</div>
+        <div class="time-row">
+          <input type="number" id="mh" min="0" max="23" placeholder="HH">
+          <span class="tsep">:</span>
+          <input type="number" id="mm" min="0" max="59" placeholder="MM">
+        </div>
+      </div>
+      <div class="field">
+        <div class="flabel">🌙 Night Feed</div>
+        <div class="time-row">
+          <input type="number" id="nh" min="0" max="23" placeholder="HH">
+          <span class="tsep">:</span>
+          <input type="number" id="nm" min="0" max="59" placeholder="MM">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveSchedule()">Save Schedule</button>
+    </div>
+
+    <div class="slabel">WiFi</div>
+    <div class="card">
+      <div class="field">
+        <div class="flabel">Network Name (SSID)</div>
+        <input type="text" id="ssidInput" placeholder="Your WiFi name">
+      </div>
+      <div class="field">
+        <div class="flabel">Password</div>
+        <input type="password" id="pass" placeholder="••••••••">
+      </div>
+      <button class="btn btn-primary" onclick="saveWiFi()">Save &amp; Restart</button>
+    </div>
+
+    <div class="slabel">Pump Timer</div>
+    <div class="card">
+      <div class="auto-row">
+        <div>
+          <div class="auto-label">Auto Timer</div>
+          <div class="auto-sub">Pump cycles automatically</div>
+        </div>
+        <label class="psw">
+          <input type="checkbox" id="pumpAuto">
+          <div class="psw-t"></div><div class="psw-k"></div>
+        </label>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:14px">
+        <div style="flex:1"><div class="flabel">On (min)</div><input type="number" id="pumpOn" min="1" style="width:100%"></div>
+        <div style="flex:1"><div class="flabel">Off (min)</div><input type="number" id="pumpOff" min="1" style="width:100%"></div>
+      </div>
+      <div class="cd">⏳&nbsp; Next change in <strong id="pumpCountdown" style="margin-left:4px">--</strong></div>
+      <button class="btn btn-primary" onclick="savePumpTimer()">Save Pump Timer</button>
+    </div>
+
+    <div class="slabel">Device</div>
+    <div class="card">
+      <div class="btn-row">
+        <button class="btn btn-danger" onclick="resetWiFi()">⚠ Reset WiFi</button>
+        <button class="btn btn-warn"   onclick="rebootDevice()">↻ Reboot</button>
+      </div>
+    </div>
+    <div style="height:8px"></div>
+  </div>
+
+</div>
+
+<!-- Bottom nav -->
+<nav>
+  <button class="nbtn active" id="navHome" onclick="showTab('home')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 3l9 9"/><path d="M9 21V12h6v9"/></svg>
+    <span>Home</span>
+  </button>
+  <button class="nbtn" id="navDevices" onclick="showTab('devices')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8"/><circle cx="12" cy="14" r="2"/></svg>
+    <span>Devices</span>
+  </button>
+  <button class="nbtn" id="navLogs" onclick="showTab('logs')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
+    <span>Logs</span>
+  </button>
+  <button class="nbtn" id="navSettings" onclick="showTab('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    <span>Settings</span>
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* Tab nav */
+const TABS = ['home','devices','logs','settings'];
+const NAVS = {home:'navHome',devices:'navDevices',logs:'navLogs',settings:'navSettings'};
+function showTab(tab){
+  TABS.forEach(t=>{
+    document.getElementById(t).classList.toggle('active',t===tab);
+    document.getElementById(NAVS[t]).classList.toggle('active',t===tab);
+  });
+  document.getElementById('scroll').scrollTop=0;
+}
+
+/* Toast */
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+/* Relay states */
+let rStates=[false,false,false,false];
+function updateRelay(elid,state){
+  const n=parseInt(elid.replace('r',''))-1;
+  rStates[n]=!!state;
+  const el=document.getElementById(elid);
+  const dev=document.getElementById('dev'+(n+1));
+  const sw=document.getElementById('sw'+(n+1));
+  el.textContent=state?'Active':'Inactive';
+  el.style.color=state?'var(--accent)':'var(--text3)';
+  dev&&(state?dev.classList.add('on'):dev.classList.remove('on'));
+  if(sw&&sw.checked!==!!state)sw.checked=!!state;
+}
+
+/* Signal */
+function updateSig(v){
+  v=parseInt(v)||0;
+  const b=document.getElementById('sigBars');
+  b.className='sig';
+  if(v>=-55)b.classList.add('s4');
+  else if(v>=-65)b.classList.add('s3');
+  else if(v>=-75)b.classList.add('s2');
+  else b.classList.add('s1');
+}
+
+/* WiFi pill */
+function setWifiPill(ok){
+  const d=document.getElementById('wifiDot');
+  const l=document.getElementById('wifiStatus');
+  d.className='dot'+(ok?'':' off');
+  l.textContent=ok?'Online':'Offline';
+}
+
+/* API — unchanged logic */
+function feedNow(){fetch('/feed');showToast('🍽 Feeding triggered!');}
+
+function toggleRelay(id){
+  fetch(`/relay?id=${id}`).then(r=>{
+    if(!r.ok)r.text().then(t=>alert(t));
+    else setTimeout(updateStatus,400);
+  });
+}
+
+let pumpBusy=false;
+function togglePumpManual(){
+  if(pumpBusy)return;pumpBusy=true;
+  fetch('/relay?id=2').then(r=>{
+    if(!r.ok){r.text().then(t=>alert(t));document.getElementById('sw2').checked=rStates[1];}
+    setTimeout(()=>{updateStatus();pumpBusy=false;},500);
+  }).catch(()=>{alert('Error toggling pump');pumpBusy=false;});
+}
+
+let pumpEditing=false;
+document.getElementById('pumpOn').addEventListener('focus',()=>pumpEditing=true);
+document.getElementById('pumpOn').addEventListener('blur',()=>pumpEditing=false);
+document.getElementById('pumpOff').addEventListener('focus',()=>pumpEditing=true);
+document.getElementById('pumpOff').addEventListener('blur',()=>pumpEditing=false);
+
+function saveSchedule(){
+  const mh=document.getElementById('mh').value,mm=document.getElementById('mm').value,
+        nh=document.getElementById('nh').value,nm=document.getElementById('nm').value;
+  fetch(`/setSchedule?mh=${mh}&mm=${mm}&nh=${nh}&nm=${nm}`)
+    .then(r=>r.ok?showToast('Schedule saved ✓'):r.text().then(t=>alert(t)));
+}
+function saveWiFi(){
+  const s=document.getElementById('ssidInput').value,p=document.getElementById('pass').value;
+  fetch(`/setWiFi?ssid=${encodeURIComponent(s)}&pass=${encodeURIComponent(p)}`);
+  showToast('WiFi saved. Restarting…');
+}
+function savePumpTimer(){
+  const on=Math.max(1,Number(document.getElementById('pumpOn').value)||1);
+  const off=Math.max(1,Number(document.getElementById('pumpOff').value)||1);
+  const en=document.getElementById('pumpAuto').checked?1:0;
+  fetch(`/setPumpTimer?on=${on}&off=${off}&enabled=${en}`)
+    .then(r=>r.ok?(showToast('Pump timer saved ✓'),setTimeout(updateStatus,600)):r.text().then(t=>alert(t)))
+    .catch(()=>alert('Network error'));
+}
+function resetWiFi(){if(confirm('Delete saved WiFi and enter Setup Mode?'))fetch('/resetWiFi');}
+function rebootDevice(){if(confirm('Reboot the device now?'))fetch('/reboot');}
+
+/* Status poll */
+const pad=n=>String(n).padStart(2,'0');
+async function updateStatus(){
+  try{
+    const r=await fetch('/status');if(!r.ok)return;
+    const d=await r.json();
+    document.getElementById('clock').textContent=d.time||'--:--:--';
+    document.getElementById('ssid').textContent=d.ssid||'--';
+    document.getElementById('wifi').textContent=d.ip||'--';
+    document.getElementById('rssi').textContent=(d.rssi||'--')+' dBm';
+    document.getElementById('lastfeed').textContent=d.lastFeed||'--';
+    document.getElementById('schedAM').textContent=`${d.mh}:${pad(d.mm)}`;
+    document.getElementById('schedPM').textContent=`${d.nh}:${pad(d.nm)}`;
+    updateSig(d.rssi);setWifiPill(true);
+    updateRelay('r1',d.r1);updateRelay('r2',d.r2);
+    updateRelay('r3',d.r3);updateRelay('r4',d.r4);
+    if(!pumpEditing){
+      document.getElementById('pumpOn').value=d.pumpOnMin||60;
+      document.getElementById('pumpOff').value=d.pumpOffMin||60;
+    }
+    document.getElementById('pumpAuto').checked=!!(d.pumpEnabled==1||d.pumpEnabled===true);
+    document.getElementById('mh').value=d.mh;document.getElementById('mm').value=d.mm;
+    document.getElementById('nh').value=d.nh;document.getElementById('nm').value=d.nm;
+    if(d.pumpCountdown!==undefined){
+      const s=Number(d.pumpCountdown)||0;
+      document.getElementById('pumpCountdown').textContent=s===0?'--':`${Math.floor(s/60)}m ${s%60}s`;
+    }
+    const pi=document.getElementById('pumpIcon');
+    d.r2?pi.classList.add('spin'):pi.classList.remove('spin');
+  }catch(e){setWifiPill(false);}
+}
+setInterval(updateStatus,1000);updateStatus();
+
+/* Logs */
+function loadLogs(){
+  fetch('/logsdata').then(r=>r.json()).then(d=>{
+    const ul=document.getElementById('loglist');ul.innerHTML='';
+    d.logs.forEach(l=>{
+      const li=document.createElement('li');li.className='log-item';
+      li.innerHTML=`<div class="ldot"></div><span>${l}</span>`;
+      ul.appendChild(li);
+    });
+  }).catch(()=>{});
+}
+setInterval(loadLogs,2000);loadLogs();
+</script>
+</body>
+</html>
