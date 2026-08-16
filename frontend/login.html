@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AquaControl — Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- Loaded non-blocking: a slow or unreachable font CDN must never stall the page's scripts. -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-title">Aqua<span>Control</span></div>
+  <div class="login-sub">Enter your dashboard passphrase</div>
+
+  <div class="card">
+    <div class="field">
+      <div class="flabel">Passphrase</div>
+      <input type="password" id="passphrase" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" id="loginBtn">Sign In</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+const input = document.getElementById("passphrase");
+const errEl = document.getElementById("err");
+
+async function login() {
+  errEl.textContent = "";
+  const passphrase = input.value;
+  if (!passphrase) { errEl.textContent = "Passphrase required"; return; }
+  try {
+    const res = await fetch(API() + "/api/auth/login", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passphrase }),
+    });
+    if (!res.ok) { errEl.textContent = "Incorrect passphrase"; return; }
+    location.href = "index.html";
+  } catch (e) {
+    errEl.textContent = "Cannot reach the server — check config.js";
+  }
+}
+
+document.getElementById("loginBtn").addEventListener("click", login);
+input.addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+</script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/ESP32-IoT-blue?style=for-the-badge&logo=espressif">
-  <img src="https://img.shields.io/badge/Version-v1.0.1-green?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-v1.1.0-green?style=for-the-badge">
   <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge">
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge">
   <img src="https://img.shields.io/badge/Dashboard-Web%20UI-cyan?style=for-the-badge">
@@ -30,6 +30,7 @@
   - [Step 6 — First Boot & WiFi Setup](#step-6--first-boot--wifi-setup)
   - [Step 7 — Access the Dashboard](#step-7--access-the-dashboard)
 - [Web Dashboard](#web-dashboard)
+- [Cloud Dashboard (Multi-Device + OTA)](#cloud-dashboard-multi-device--ota)
 - [System Behavior](#system-behavior)
   - [Feeding Logic](#feeding-logic)
   - [Pump Timer](#pump-timer)
@@ -97,6 +98,13 @@ This project turns an ESP32 into a fully automated aquarium controller. It handl
 - Cloud watchdog — auto-reboots if cloud stays disconnected >5 minutes while WiFi is fine
 - Timezone reapplied after cloud connect (prevents cloud library from corrupting IST time)
 - Cloud operates independently — local system continues if cloud is down
+
+### Hosted Cloud Dashboard (optional)
+- Control multiple ESP32 aquariums from one dashboard, from anywhere
+- Self-hosted on free tiers: Netlify (UI) + Cloudflare Workers/D1/R2 (API, data, firmware)
+- OTA firmware updates triggered from the dashboard — no USB cable
+- Per-device API keys; cloud settings configurable from the local dashboard without reflashing
+- Fully optional — device works exactly as before if you skip it
 
 ### Status LEDs
 - Dual LED system with distinct patterns for every system state
@@ -172,6 +180,10 @@ Install all of these via Arduino IDE **Library Manager** (`Sketch → Include Li
 | ESP32Servo | `ESP32Servo` | Latest |
 | ArduinoIoTCloud | `ArduinoIoTCloud` | Latest |
 | Arduino_ConnectionHandler | `Arduino_ConnectionHandler` | Latest |
+| ArduinoJson | `ArduinoJson` | v7.x |
+
+> **ArduinoJson v7** is required — it parses commands returned by the cloud dashboard. If you're
+> not using the cloud layer you still need it installed for the sketch to compile.
 
 > **ESPAsyncWebServer** and **AsyncTCP** are not in the standard Library Manager. Install them manually from GitHub:
 > - https://github.com/me-no-dev/ESPAsyncWebServer
@@ -184,14 +196,25 @@ Install all of these via Arduino IDE **Library Manager** (`Sketch → Include Li
 ```
 Smart-Aquarium-ESP32/
 ├── firmware/
-│   ├── smart_aquarium/
-│   │   ├── smart_aquarium.ino    ← Main firmware
-│   │   └── data/
-│   │       └── index.html        ← Web dashboard (uploaded to SPIFFS)
+│   └── smart_aquarium/
+│       ├── smart_aquarium.ino    ← Main firmware
+│       └── data/
+│           └── index.html        ← Local web dashboard (uploaded to SPIFFS)
+├── backend/                      ← Cloudflare Worker API (optional cloud layer)
+│   ├── src/
+│   ├── migrations/
+│   └── wrangler.toml
+├── frontend/                     ← Netlify-hosted cloud dashboard (optional)
+│   ├── index.html                ← Device list
+│   ├── device.html               ← Per-device control
+│   └── config.js                 ← Set your Worker URL here
 ├── README.md
 ├── LICENSE
 └── .gitignore
 ```
+
+> `backend/` and `frontend/` are entirely optional. Without them the device works exactly as
+> before — local dashboard, feeding, pump timer, relays, Arduino IoT Cloud.
 
 ---
 
@@ -354,6 +377,91 @@ The dashboard is a single-page mobile app served directly from the ESP32. No ext
 
 ---
 
+## Cloud Dashboard (Multi-Device + OTA)
+
+The local dashboard only works on your home WiFi. The optional cloud layer lets you control
+**several ESP32 aquariums from anywhere**, from one hosted dashboard, and push **OTA firmware
+updates** without a USB cable.
+
+```
+ESP32 #1 ─┐
+ESP32 #2 ─┼─ push status / poll commands ─▶ Cloudflare Worker ─▶ D1 (data) + R2 (firmware)
+ESP32 #N ─┘                                        ▲
+                                                   │
+                       Netlify static dashboard ───┘
+```
+
+### Why it's poll-based
+
+Your ESP32 sits behind your router's NAT — nothing on the internet can open a connection *to* it.
+So the device does the connecting: every 10 seconds it POSTs its status to the Worker and receives
+any commands you queued in the same response. This means cloud actions apply within ~10 seconds
+rather than instantly. On your home WiFi, the local dashboard is still immediate — use that when
+you're home.
+
+### What runs where
+
+| Piece | Host | Cost | Purpose |
+|---|---|---|---|
+| Dashboard UI | Netlify | Free | Static HTML/CSS/JS, no build step |
+| API | Cloudflare Workers | Free tier | Auth, device registry, command queue |
+| Database | Cloudflare D1 | Free tier | Devices, status, logs, firmware index |
+| Firmware storage | Cloudflare R2 | Free tier | OTA `.bin` files |
+
+### Setup
+
+1. **Deploy the backend** — follow [`backend/README.md`](backend/README.md). You'll create a D1
+   database and R2 bucket, set your dashboard passphrase, and deploy the Worker.
+2. **Deploy the frontend** — follow [`frontend/README.md`](frontend/README.md). Put your Worker URL
+   in `frontend/config.js`, then deploy to Netlify.
+3. **Register each device** — sign in to the dashboard, click **Register New Device**, and copy the
+   **Device ID** and **API Key** it shows (the key appears only once).
+4. **Point the ESP32 at the cloud** — on the device's local dashboard, go to
+   **Settings → Cloud Dashboard**, enter the API URL, Device ID, and API Key, and save. No
+   reflashing needed. Within ~10 seconds it shows as **online** in the cloud dashboard.
+
+Repeat steps 3–4 for every ESP32 you want to add.
+
+### What you can do from the cloud
+
+Feed now, toggle any of the 4 relays, change the feeding schedule, change pump timer settings,
+reboot the device, and trigger OTA firmware updates. Viewing shows the device's last-pushed status
+plus its activity log history.
+
+WiFi credentials are deliberately **not** changeable from the cloud — changing them remotely would
+disconnect the device from the very connection carrying the command. Use the local dashboard or AP
+mode for that.
+
+### OTA firmware updates
+
+1. Bump `FW_VERSION` in `smart_aquarium.ino`, then `Sketch → Export Compiled Binary` in Arduino IDE.
+2. Upload the `.bin` to R2 and register the version — exact commands are in
+   [`backend/README.md`](backend/README.md#publishing-a-firmware-update-ota).
+3. In the cloud dashboard, open the device → **Settings → Firmware → Update Firmware (OTA)**.
+
+The device downloads and flashes on its next sync, then reboots. Relay states, schedule, and pump
+settings all survive the update (they live in NVS Preferences, which OTA doesn't touch).
+
+> **Note:** SPIFFS is *not* updated by OTA. If you change `data/index.html`, that still needs a
+> USB `ESP32 Sketch Data Upload`. OTA covers firmware only.
+
+### Security notes
+
+- The dashboard is protected by a single shared passphrase (set as the `OWNER_PASSPHRASE` Worker
+  secret), stored as a signed HttpOnly session cookie. It's designed for personal use, not for
+  handing out accounts to multiple people.
+- Each device authenticates with its own API key, sent as an `X-Device-Key` header and stored
+  server-side only as a SHA-256 hash.
+- The ESP32 uses `WiFiClientSecure::setInsecure()` — TLS is encrypted but the server certificate
+  isn't validated. Pinning a CA on-device would break every time Cloudflare rotates certificates.
+  For a home aquarium controller this is a reasonable trade; be aware of it before putting anything
+  sensitive behind this API.
+- Firmware binaries are downloadable without auth (the ESP32's `HTTPUpdate` can't easily attach
+  custom headers). A compiled `.bin` for an aquarium controller isn't secret, but don't embed
+  credentials in firmware you upload.
+
+---
+
 ## System Behavior
 
 ### Feeding Logic
@@ -477,6 +585,8 @@ All endpoints are HTTP GET, served by the async dashboard server on port 80.
 | `/setPumpTimer` | Updates pump timer settings | `on, off, enabled` |
 | `/resetWiFi` | Clears WiFi credentials and reboots | — |
 | `/reboot` | Reboots the device | — |
+| `/setCloud` | Saves cloud dashboard settings | `url, id, key` |
+| `/cloudInfo` | Returns cloud config + sync state (never the API key) | — |
 
 **AP server endpoints** (available at `192.168.4.1` during AP mode):
 
@@ -541,7 +651,6 @@ To factory reset all preferences: use the **Reset WiFi** button in Settings (cle
 
 ## Future Improvements
 
-- OTA (Over-the-Air) firmware updates from dashboard
 - Water temperature sensor (DS18B20) display
 - TDS/water quality sensor integration  
 - Multiple feeding schedules (more than 2 per day)
@@ -555,8 +664,33 @@ To factory reset all preferences: use the **Reset WiFi** button in Settings (cle
 
  
 ## Release Notes
- 
-### v1.0.1 — Current Release
+
+### v1.1.0 — Current Release
+
+**New Features:**
+- **Hosted cloud dashboard** — control multiple ESP32 aquariums from anywhere. Cloudflare Worker
+  API (`backend/`) + Netlify static dashboard (`frontend/`), both on free tiers
+- **Multi-device support** — register any number of devices, each with its own API key; one
+  dashboard lists them all with online/offline state
+- **OTA firmware updates** — trigger a firmware update from the dashboard; the device downloads
+  and flashes on its next sync
+- **Cloud settings in the local dashboard** — new Settings → Cloud section to enter API URL,
+  Device ID and API Key without reflashing
+- New endpoints: `/setCloud`, `/cloudInfo`
+- Firmware version (`FW_VERSION`) reported to the cloud and shown in both dashboards
+
+**Bug Fixes:**
+- Removed dead duplicate block in `startFeeding()` that logged a spurious
+  "already feeding" line on every successful feed
+
+**Notes:**
+- Requires the **ArduinoJson v7** library
+- The cloud layer is optional; without it behavior is unchanged from v1.0.1
+- OTA updates firmware only — SPIFFS (`data/index.html`) still needs a USB upload
+
+---
+
+### v1.0.1
  
 **New Features:**
 - Missed feeding recovery — detects and recovers missed scheduled feeds on reboot

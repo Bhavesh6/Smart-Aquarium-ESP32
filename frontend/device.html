@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AquaControl</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- Loaded non-blocking: a slow or unreachable font CDN must never stall the page's scripts. -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:10px">
+    <a href="index.html" style="color:var(--text2);font-size:20px;line-height:1">‹</a>
+    <div class="topbar-title" id="devName">Aqua<span>Control</span></div>
+  </div>
+  <div class="pill">
+    <div class="dot off" id="onlineDot"></div>
+    <span id="onlineText">—</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- HOME -->
+  <div class="tab active" id="home">
+    <div class="clock-card">
+      <div class="clock-time" id="clock">--:--:--</div>
+      <div class="clock-sub">Device time (IST)</div>
+    </div>
+
+    <div class="slabel">Network</div>
+    <div class="card">
+      <div class="net-grid">
+        <div><div class="nlabel">Network</div><div class="nval" id="ssid">--</div></div>
+        <div>
+          <div class="nlabel">Signal</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="sig" id="sigBars"><span></span><span></span><span></span><span></span></div>
+            <div class="nval" id="rssi">--</div>
+          </div>
+        </div>
+        <div><div class="nlabel">Local IP</div><div class="nval a" id="ip">--</div></div>
+        <div><div class="nlabel">Last Sync</div><div class="nval" id="lastSync">--</div></div>
+      </div>
+    </div>
+
+    <div class="slabel">Feeding</div>
+    <div class="card">
+      <div class="sched-row">
+        <div class="sched-block"><div class="stag">☀ Morning</div><div class="sval" id="schedAM">--:--</div></div>
+        <div class="sched-block"><div class="stag">🌙 Night</div><div class="sval" id="schedPM">--:--</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="nlabel" style="margin-bottom:4px">Last Feeding</div>
+      <div class="lf-val" id="lastfeed">--</div>
+      <button class="btn-feed" onclick="feedNow()">🍽&nbsp; Feed Now</button>
+    </div>
+  </div>
+
+  <!-- DEVICES -->
+  <div class="tab" id="devices">
+    <div class="slabel">Relays</div>
+    <div class="dev-grid">
+      <div class="dev" id="dev1">
+        <div class="dev-top">
+          <div class="dev-ico">🌊</div>
+          <label class="sw"><input type="checkbox" id="sw1" onchange="toggleRelay(1)"><div class="sw-t"></div><div class="sw-k"></div></label>
+        </div>
+        <div><div class="dev-name">Aquarium Light</div><div class="dev-st" id="r1">Inactive</div></div>
+      </div>
+      <div class="dev" id="dev2">
+        <div class="dev-top">
+          <div class="dev-ico"><span id="pumpIcon">🔄</span></div>
+          <label class="sw"><input type="checkbox" id="sw2" onchange="toggleRelay(2)"><div class="sw-t"></div><div class="sw-k"></div></label>
+        </div>
+        <div><div class="dev-name">Filter Pump</div><div class="dev-st" id="r2">Inactive</div></div>
+      </div>
+      <div class="dev" id="dev3">
+        <div class="dev-top">
+          <div class="dev-ico">✨</div>
+          <label class="sw"><input type="checkbox" id="sw3" onchange="toggleRelay(3)"><div class="sw-t"></div><div class="sw-k"></div></label>
+        </div>
+        <div><div class="dev-name">Deco Light</div><div class="dev-st" id="r3">Inactive</div></div>
+      </div>
+      <div class="dev" id="dev4">
+        <div class="dev-top">
+          <div class="dev-ico">💡</div>
+          <label class="sw"><input type="checkbox" id="sw4" onchange="toggleRelay(4)"><div class="sw-t"></div><div class="sw-k"></div></label>
+        </div>
+        <div><div class="dev-name">Room Light</div><div class="dev-st" id="r4">Inactive</div></div>
+      </div>
+    </div>
+    <div class="empty" style="padding:12px 8px;text-align:left">
+      Commands are queued and applied on the device's next sync (within ~10s).
+    </div>
+  </div>
+
+  <!-- LOGS -->
+  <div class="tab" id="logs">
+    <div class="slabel">Activity Log</div>
+    <div class="card" style="padding:14px">
+      <ul class="log-list" id="loglist"></ul>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="tab" id="settings">
+    <div class="slabel">Schedule</div>
+    <div class="card">
+      <div class="field">
+        <div class="flabel">☀️ Morning Feed</div>
+        <div class="time-row">
+          <input type="number" id="mh" min="0" max="23" placeholder="HH">
+          <span class="tsep">:</span>
+          <input type="number" id="mm" min="0" max="59" placeholder="MM">
+        </div>
+      </div>
+      <div class="field">
+        <div class="flabel">🌙 Night Feed</div>
+        <div class="time-row">
+          <input type="number" id="nh" min="0" max="23" placeholder="HH">
+          <span class="tsep">:</span>
+          <input type="number" id="nm" min="0" max="59" placeholder="MM">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveSchedule()">Save Schedule</button>
+    </div>
+
+    <div class="slabel">Pump Timer</div>
+    <div class="card">
+      <div class="auto-row">
+        <div>
+          <div class="auto-label">Auto Timer</div>
+          <div class="auto-sub">Pump cycles automatically</div>
+        </div>
+        <label class="psw"><input type="checkbox" id="pumpAuto"><div class="psw-t"></div><div class="psw-k"></div></label>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:14px">
+        <div style="flex:1"><div class="flabel">On (min)</div><input type="number" id="pumpOn" min="1" style="width:100%"></div>
+        <div style="flex:1"><div class="flabel">Off (min)</div><input type="number" id="pumpOff" min="1" style="width:100%"></div>
+      </div>
+      <div class="cd">⏳&nbsp; Next change in <strong id="pumpCountdown" style="margin-left:4px">--</strong></div>
+      <button class="btn btn-primary" onclick="savePumpTimer()">Save Pump Timer</button>
+    </div>
+
+    <div class="slabel">Firmware</div>
+    <div class="card">
+      <div class="net-grid" style="margin-bottom:16px">
+        <div><div class="nlabel">Installed</div><div class="nval" id="fwCurrent">--</div></div>
+        <div><div class="nlabel">Available</div><div class="nval a" id="fwLatest">--</div></div>
+      </div>
+      <div id="fwNotes" class="auto-sub" style="margin-bottom:14px"></div>
+      <button class="btn btn-primary" id="otaBtn" onclick="startOTA()">⬆ Update Firmware (OTA)</button>
+    </div>
+
+    <div class="slabel">Device</div>
+    <div class="card">
+      <div class="btn-row">
+        <button class="btn btn-warn" onclick="rebootDevice()">↻ Reboot Device</button>
+      </div>
+      <div class="auto-sub" style="margin-top:12px">
+        WiFi settings can only be changed from the device's local dashboard — changing them
+        remotely would disconnect it from the cloud.
+      </div>
+    </div>
+    <div style="height:8px"></div>
+  </div>
+
+</div>
+
+<nav>
+  <button class="nbtn active" id="navHome" onclick="showTab('home')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 3l9 9"/><path d="M9 21V12h6v9"/></svg>
+    <span>Home</span>
+  </button>
+  <button class="nbtn" id="navDevices" onclick="showTab('devices')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8"/><circle cx="12" cy="14" r="2"/></svg>
+    <span>Relays</span>
+  </button>
+  <button class="nbtn" id="navLogs" onclick="showTab('logs')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
+    <span>Logs</span>
+  </button>
+  <button class="nbtn" id="navSettings" onclick="showTab('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    <span>Settings</span>
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+const deviceId = new URLSearchParams(location.search).get("id");
+if (!deviceId) location.href = "index.html";
+
+const TABS = ["home", "devices", "logs", "settings"];
+const NAVS = { home: "navHome", devices: "navDevices", logs: "navLogs", settings: "navSettings" };
+function showTab(tab) {
+  TABS.forEach((t) => {
+    document.getElementById(t).classList.toggle("active", t === tab);
+    document.getElementById(NAVS[t]).classList.toggle("active", t === tab);
+  });
+  window.scrollTo(0, 0);
+}
+
+let rStates = [false, false, false, false];
+let latestFirmware = null;
+let pumpEditing = false;
+["pumpOn", "pumpOff"].forEach((id) => {
+  document.getElementById(id).addEventListener("focus", () => (pumpEditing = true));
+  document.getElementById(id).addEventListener("blur", () => (pumpEditing = false));
+});
+
+function updateRelay(idx, state) {
+  rStates[idx] = !!state;
+  const el = document.getElementById("r" + (idx + 1));
+  const dev = document.getElementById("dev" + (idx + 1));
+  const sw = document.getElementById("sw" + (idx + 1));
+  el.textContent = state ? "Active" : "Inactive";
+  el.style.color = state ? "var(--accent)" : "var(--text3)";
+  dev.classList.toggle("on", !!state);
+  if (sw.checked !== !!state) sw.checked = !!state;
+}
+
+function updateSig(v) {
+  v = parseInt(v) || 0;
+  const b = document.getElementById("sigBars");
+  b.className = "sig";
+  if (v >= -55) b.classList.add("s4");
+  else if (v >= -65) b.classList.add("s3");
+  else if (v >= -75) b.classList.add("s2");
+  else b.classList.add("s1");
+}
+
+async function refresh() {
+  try {
+    const { devices } = await apiJson("/api/devices");
+    const d = devices.find((x) => x.id === deviceId);
+    if (!d) { location.href = "index.html"; return; }
+
+    document.getElementById("devName").textContent = d.name;
+    const online = isOnline(d.last_seen_at);
+    document.getElementById("onlineDot").className = "dot" + (online ? "" : " off");
+    document.getElementById("onlineText").textContent = online ? "Online" : "Offline";
+    document.getElementById("lastSync").textContent = relativeTime(d.last_seen_at);
+    document.getElementById("fwCurrent").textContent = d.fw_version || "unknown";
+
+    const s = d.status_json ? JSON.parse(d.status_json) : {};
+    document.getElementById("clock").textContent = s.time || "--:--:--";
+    document.getElementById("ssid").textContent = s.ssid || "--";
+    document.getElementById("ip").textContent = s.ip || "--";
+    document.getElementById("rssi").textContent = (s.rssi ?? "--") + " dBm";
+    document.getElementById("lastfeed").textContent = s.lastFeed || "--";
+    if (s.mh !== undefined) {
+      document.getElementById("schedAM").textContent = `${s.mh}:${pad(s.mm)}`;
+      document.getElementById("schedPM").textContent = `${s.nh}:${pad(s.nm)}`;
+      document.getElementById("mh").value = s.mh;
+      document.getElementById("mm").value = s.mm;
+      document.getElementById("nh").value = s.nh;
+      document.getElementById("nm").value = s.nm;
+    }
+    updateSig(s.rssi);
+    [s.r1, s.r2, s.r3, s.r4].forEach((v, i) => updateRelay(i, v));
+    if (!pumpEditing) {
+      document.getElementById("pumpOn").value = s.pumpOnMin ?? 60;
+      document.getElementById("pumpOff").value = s.pumpOffMin ?? 60;
+    }
+    document.getElementById("pumpAuto").checked = !!(s.pumpEnabled == 1 || s.pumpEnabled === true);
+    const cd = Number(s.pumpCountdown) || 0;
+    document.getElementById("pumpCountdown").textContent =
+      cd === 0 ? "--" : `${Math.floor(cd / 60)}m ${cd % 60}s`;
+    document.getElementById("pumpIcon").classList.toggle("spin", !!s.r2);
+  } catch (e) {
+    document.getElementById("onlineText").textContent = "Error";
+  }
+}
+
+async function loadLogs() {
+  try {
+    const { logs } = await apiJson(`/api/devices/${deviceId}/logs`);
+    const ul = document.getElementById("loglist");
+    ul.innerHTML = "";
+    for (const l of logs) {
+      const li = document.createElement("li");
+      li.className = "log-item";
+      const time = new Date(l.created_at).toLocaleTimeString();
+      li.innerHTML = `<div class="ldot"></div><span>[${time}] ${escapeHtml(l.message)}</span>`;
+      ul.appendChild(li);
+    }
+  } catch {}
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function loadFirmware() {
+  try {
+    latestFirmware = await apiJson("/api/firmware/latest");
+    document.getElementById("fwLatest").textContent = latestFirmware.version;
+    document.getElementById("fwNotes").textContent = latestFirmware.notes || "";
+  } catch {
+    document.getElementById("fwLatest").textContent = "none";
+    document.getElementById("otaBtn").disabled = true;
+    document.getElementById("fwNotes").textContent = "No firmware uploaded to the server yet.";
+  }
+}
+
+/* ---- actions (all queued as commands) ---- */
+async function queue(type, payload, message) {
+  try {
+    await sendCommand(deviceId, type, payload);
+    showToast(message);
+  } catch (e) {
+    showToast("Failed: " + e.message);
+  }
+}
+
+function feedNow() { queue("feed", {}, "🍽 Feed queued"); }
+
+function toggleRelay(id) {
+  const on = document.getElementById("sw" + id).checked;
+  queue("relay", { id, on }, `Relay ${id} → ${on ? "ON" : "OFF"} queued`);
+}
+
+function saveSchedule() {
+  const mh = +document.getElementById("mh").value, mm = +document.getElementById("mm").value;
+  const nh = +document.getElementById("nh").value, nm = +document.getElementById("nm").value;
+  if ([mh, mm, nh, nm].some(Number.isNaN) || mh > 23 || nh > 23 || mm > 59 || nm > 59) {
+    showToast("Invalid time values"); return;
+  }
+  queue("set_schedule", { mh, mm, nh, nm }, "Schedule queued ✓");
+}
+
+function savePumpTimer() {
+  const on = Math.max(1, Number(document.getElementById("pumpOn").value) || 1);
+  const off = Math.max(1, Number(document.getElementById("pumpOff").value) || 1);
+  const enabled = document.getElementById("pumpAuto").checked;
+  queue("set_pump_timer", { on, off, enabled }, "Pump timer queued ✓");
+}
+
+function rebootDevice() {
+  if (confirm("Reboot this device?")) queue("reboot", {}, "Reboot queued");
+}
+
+function startOTA() {
+  if (!latestFirmware) return;
+  if (!confirm(`Update to firmware ${latestFirmware.version}? The device will reboot.`)) return;
+  queue("ota", { url: latestFirmware.url, version: latestFirmware.version },
+        "OTA update queued — device will flash on next sync");
+}
+
+refresh(); loadLogs(); loadFirmware();
+setInterval(refresh, 5000);
+setInterval(loadLogs, 10000);
+</script>
+</body>
+</html>

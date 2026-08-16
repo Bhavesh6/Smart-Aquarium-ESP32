@@ -461,8 +461,34 @@ nav{
       <button class="btn btn-primary" onclick="savePumpTimer()">Save Pump Timer</button>
     </div>
 
+    <div class="slabel">Cloud Dashboard</div>
+    <div class="card">
+      <div class="auto-row">
+        <div>
+          <div class="auto-label">Status</div>
+          <div class="auto-sub" id="cloudState">Not configured</div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="flabel">API URL</div>
+        <input type="text" id="cloudUrl" placeholder="https://your-api.workers.dev">
+      </div>
+      <div class="field">
+        <div class="flabel">Device ID</div>
+        <input type="text" id="cloudId" placeholder="From the cloud dashboard">
+      </div>
+      <div class="field">
+        <div class="flabel">API Key</div>
+        <input type="password" id="cloudKey" placeholder="Shown once when registering">
+      </div>
+      <button class="btn btn-primary" onclick="saveCloud()">Save Cloud Settings</button>
+    </div>
+
     <div class="slabel">Device</div>
     <div class="card">
+      <div class="net-grid" style="margin-bottom:16px">
+        <div><div class="nlabel">Firmware</div><div class="nval" id="fwVersion">--</div></div>
+      </div>
       <div class="btn-row">
         <button class="btn btn-danger" onclick="resetWiFi()">⚠ Reset WiFi</button>
         <button class="btn btn-warn"   onclick="rebootDevice()">↻ Reboot</button>
@@ -594,6 +620,30 @@ function savePumpTimer(){
 }
 function resetWiFi(){if(confirm('Delete saved WiFi and enter Setup Mode?'))fetch('/resetWiFi');}
 function rebootDevice(){if(confirm('Reboot the device now?'))fetch('/reboot');}
+
+/* Cloud dashboard settings */
+function saveCloud(){
+  const url=document.getElementById('cloudUrl').value.trim();
+  const id=document.getElementById('cloudId').value.trim();
+  const key=document.getElementById('cloudKey').value.trim();
+  if(!url||!id||!key){alert('All three cloud fields are required');return;}
+  fetch(`/setCloud?url=${encodeURIComponent(url)}&id=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`)
+    .then(r=>r.ok?(showToast('Cloud settings saved ✓'),setTimeout(loadCloudInfo,1500)):r.text().then(t=>alert(t)))
+    .catch(()=>alert('Network error'));
+}
+
+function loadCloudInfo(){
+  fetch('/cloudInfo').then(r=>r.json()).then(d=>{
+    document.getElementById('fwVersion').textContent=d.fw||'--';
+    const st=document.getElementById('cloudState');
+    if(!d.configured){st.textContent='Not configured';st.style.color='var(--text3)';}
+    else if(d.synced){st.textContent='Connected';st.style.color='var(--green)';}
+    else{st.textContent='Configured — not syncing';st.style.color='var(--amber)';}
+    if(d.url&&!document.getElementById('cloudUrl').value)document.getElementById('cloudUrl').value=d.url;
+    if(d.id&&!document.getElementById('cloudId').value)document.getElementById('cloudId').value=d.id;
+  }).catch(()=>{});
+}
+setInterval(loadCloudInfo,5000);loadCloudInfo();
 
 /* Status poll */
 const pad=n=>String(n).padStart(2,'0');
