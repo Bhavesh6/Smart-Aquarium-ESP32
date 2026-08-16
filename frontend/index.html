@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AquaControl — My Aquariums</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- Loaded non-blocking: a slow or unreachable font CDN must never stall the page's scripts. -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">Aqua<span>Control</span></div>
+  <div class="pill"><span id="deviceCount">—</span></div>
+</div>
+
+<div class="wrap">
+  <div id="keyReveal"></div>
+
+  <div class="slabel">My Aquariums</div>
+  <div id="deviceList"><div class="empty">Loading…</div></div>
+
+  <div class="slabel">Add</div>
+  <div class="card">
+    <div class="field">
+      <div class="flabel">Aquarium name</div>
+      <input type="text" id="newName" placeholder="e.g. Living Room Tank">
+    </div>
+    <button class="btn btn-primary" id="addBtn">Register New Device</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+async function loadDevices() {
+  try {
+    const { devices } = await apiJson("/api/devices");
+    document.getElementById("deviceCount").textContent =
+      devices.length + (devices.length === 1 ? " device" : " devices");
+
+    const list = document.getElementById("deviceList");
+    if (devices.length === 0) {
+      list.innerHTML = '<div class="empty">No devices yet.<br>Register one below, then enter its ID and key in the ESP32\'s Settings tab.</div>';
+      return;
+    }
+
+    list.innerHTML = "";
+    for (const d of devices) {
+      const online = isOnline(d.last_seen_at);
+      let status = {};
+      try { status = d.status_json ? JSON.parse(d.status_json) : {}; } catch {}
+
+      const el = document.createElement("div");
+      el.className = "dcard";
+      el.onclick = () => location.href = `device.html?id=${encodeURIComponent(d.id)}`;
+      el.innerHTML = `
+        <div class="dcard-ico">🐟</div>
+        <div style="flex:1;min-width:0">
+          <div class="dcard-name">${escapeHtml(d.name)}</div>
+          <div class="dcard-meta">
+            ${status.ip ? escapeHtml(status.ip) + " · " : ""}last sync ${relativeTime(d.last_seen_at)}
+            ${d.fw_version ? " · fw " + escapeHtml(d.fw_version) : ""}
+          </div>
+        </div>
+        <div class="badge ${online ? "online" : "offline"}">${online ? "online" : "offline"}</div>
+      `;
+      list.appendChild(el);
+    }
+  } catch (e) {
+    document.getElementById("deviceList").innerHTML =
+      `<div class="empty">Could not load devices.<br>${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+document.getElementById("addBtn").addEventListener("click", async () => {
+  const name = document.getElementById("newName").value.trim();
+  if (!name) { showToast("Enter a name first"); return; }
+  try {
+    const device = await apiJson("/api/devices", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+    // The API key is only ever returned here -- surface it prominently.
+    document.getElementById("keyReveal").innerHTML = `
+      <div class="keybox">
+        <h4>⚠ Save these now — the key is shown only once</h4>
+        <div class="keyrow">Device ID<code>${escapeHtml(device.id)}</code></div>
+        <div class="keyrow">API Key<code>${escapeHtml(device.apiKey)}</code></div>
+        <div class="keyrow" style="margin-top:10px;color:var(--text3)">
+          Enter both in the ESP32's local dashboard under Settings → Cloud, along with your API URL.
+        </div>
+      </div>`;
+    document.getElementById("newName").value = "";
+    showToast("Device registered ✓");
+    loadDevices();
+  } catch (e) {
+    showToast("Failed: " + e.message);
+  }
+});
+
+loadDevices();
+setInterval(loadDevices, 10000);
+</script>
+</body>
+</html>

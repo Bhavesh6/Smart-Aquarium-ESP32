@@ -1,0 +1,16 @@
+[build]
+  publish = "."
+
+# Static site, no build step. Deploy with:
+#   netlify deploy --prod --dir=frontend
+# or point Netlify at this repo with base directory "frontend".
+
+# "/" serves index.html (the device list); it redirects to login.html itself
+# on a 401, so no redirect rule is needed here.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"

@@ -2,3 +2,18 @@ secrets.h
 .DS_Store
 Thumbs.db
 *.log
+
+# Node / Cloudflare Worker
+node_modules/
+.wrangler/
+dist/
+
+# Local secrets — never commit these
+.dev.vars
+.env
+
+# Netlify
+.netlify/
+
+# Exported firmware binaries
+*.bin

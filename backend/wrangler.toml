@@ -1,0 +1,18 @@
+name = "smart-aquarium-api"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# Bump this before every `wrangler deploy` if you're pinning a data_key elsewhere - not required otherwise.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "smart-aquarium-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "FIRMWARE"
+bucket_name = "smart-aquarium-firmware"
+
+# Secrets (set via `wrangler secret put`, do NOT put real values here):
+#   OWNER_PASSPHRASE   - the shared dashboard login passphrase
+#   COOKIE_SECRET       - random string used to sign the owner session cookie

@@ -7,8 +7,10 @@
   - 4 relays + continuous servo feeder
   - Non-blocking feeding + schedule (IST via NTP)
   - Logs buffer + serial debug
-  - Web endpoints: /status, /feed, /relay, /setSchedule, /setWiFi, /logsdata, /resetWiFi, /reboot, /setPumpTimer
+  - Web endpoints: /status, /feed, /relay, /setSchedule, /setWiFi, /logsdata, /resetWiFi, /reboot, /setPumpTimer, /setCloud, /cloudInfo
   - Arduino IoT Cloud: remote ON/OFF control for 4 relays ONLY (no time sync)
+  - Custom cloud dashboard (optional): pushes status to a Cloudflare Worker and
+    applies queued commands, including OTA firmware updates. See backend/ and frontend/.
 
   FIXES APPLIED:
   [1] dashboardHandlersRegistered guard — prevents duplicate async route registration on reconnect
@@ -28,6 +30,11 @@
 #include <ESP32Servo.h>
 #include <time.h>
 
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <HTTPUpdate.h>
+#include <ArduinoJson.h>
+
 #include <ArduinoIoTCloud.h>
 #include <Arduino_ConnectionHandler.h>
 
@@ -35,6 +42,10 @@ WebServer apServer(80);
 AsyncWebServer asyncServer(80);
 Preferences prefs;
 Servo feederServo;
+
+/* Firmware version — reported to the cloud and compared against the
+   latest available version when deciding whether an OTA is needed. */
+const char* FW_VERSION = "1.1.0";
 
 /* ===== PINS ===== */
 #define R1 26   // Aquarium Light
@@ -102,6 +113,17 @@ bool pendingReboot = false;               // [FIX 2]
 unsigned long cloudDisconnectedSince = 0;
 const unsigned long CLOUD_RECONNECT_TIMEOUT = 5UL * 60UL * 1000UL; // 5 minutes
 
+/* ===== CUSTOM CLOUD DASHBOARD (Cloudflare Worker) =====
+   Optional. When configured, the device periodically pushes its status to the
+   Worker and receives queued commands in the same response. Everything below
+   fails silently when unreachable — local operation is never blocked by it. */
+String cloudApiUrl   = "";   // e.g. https://smart-aquarium-api.you.workers.dev
+String cloudDeviceId = "";
+String cloudApiKey   = "";
+unsigned long lastCloudSync = 0;
+const unsigned long CLOUD_SYNC_INTERVAL = 10000UL; // 10 seconds
+bool cloudSyncOk = false;
+
 /* AP expiry + mode */
 unsigned long apExpiryMillis = 0;
 bool apTemporary = false;
@@ -143,6 +165,11 @@ void initCloud();
 void handleSerialInput();
 void handleButton();
 void checkMissedFeeding();
+String buildStatusJson();
+void cloudSync();
+void applyCloudCommand(JsonObject cmd);
+void ackCloudCommand(const String &commandId);
+void performOTA(const String &url, const String &version);
 
 /* -------------------- Logging -------------------- */
 void pushLog(String s){
@@ -185,16 +212,6 @@ void startFeeding(const char* source){
   // Track manual/web feeds
   if (!isScheduled) lastManualFeedTime = millis();
 
-  feedingNow = true;
-  feederServo.write(SPEED);
-  feedStartTime = millis();
-  feedDuration = (unsigned long)oneTurnTime * rotations;
-  pushLog(String("Feeding started (") + source + ")");
- 
-  if (feedingNow) {
-    pushLog("Feed requested but already feeding (" + String(source) + ")");
-    return;
-  }
   feedingNow = true;
   feederServo.write(SPEED);
   feedStartTime = millis();
@@ -259,6 +276,47 @@ void updatePumpTimer() {
     pumpLastToggle = now;
     pushLog(String("Pump auto toggled by timer -> ") + (relayState[1] ? "ON" : "OFF"));
   }
+}
+
+/* -------------------- Status JSON (shared by /status and cloud sync) -------------------- */
+String buildStatusJson(){
+  struct tm t; String timeStr = "--:--:--"; long epoch = 0;
+  if (WiFi.status() == WL_CONNECTED && getLocalTime(&t)){
+    char buf[20]; strftime(buf, sizeof(buf), "%H:%M:%S", &t);
+    timeStr = buf;
+    epoch = mktime(&t);
+  }
+  String ip   = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "AP Mode";
+  String ssid = (WiFi.status() == WL_CONNECTED) ? WiFi.SSID() : "Not connected";
+  int rssi    = (WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : 0;
+
+  unsigned long remaining = 0;
+  if (pumpTimerEnabled){
+    unsigned long elapsed = millis() - pumpLastToggle;
+    unsigned long target  = relayState[1] ? pumpOnDuration : pumpOffDuration;
+    if (elapsed < target) remaining = (target - elapsed) / 1000UL;
+  }
+
+  String json = "{";
+  json += "\"time\":\""     + timeStr             + "\",";
+  json += "\"epoch\":"      + String(epoch)        + ",";
+  json += "\"ip\":\""       + ip                   + "\",";
+  json += "\"ssid\":\""     + jsonEscape(ssid)     + "\",";
+  json += "\"rssi\":"       + String(rssi)         + ",";
+  json += "\"lastFeed\":\"" + jsonEscape(lastFeed) + "\",";
+  json += "\"fw\":\""       + String(FW_VERSION)   + "\",";
+  json += "\"mh\":"  + String(mHour) + ",\"mm\":" + String(mMin) + ",";
+  json += "\"nh\":"  + String(nHour) + ",\"nm\":" + String(nMin) + ",";
+  json += "\"r1\":"  + String(relayState[0]) + ",";
+  json += "\"r2\":"  + String(relayState[1]) + ",";
+  json += "\"r3\":"  + String(relayState[2]) + ",";
+  json += "\"r4\":"  + String(relayState[3]) + ",";
+  json += "\"pumpOnMin\":"   + String(pumpOnDuration  / 60000UL) + ",";
+  json += "\"pumpOffMin\":"  + String(pumpOffDuration / 60000UL) + ",";
+  json += "\"pumpEnabled\":" + String(pumpTimerEnabled ? 1 : 0) + ",";
+  json += "\"pumpCountdown\":" + String(remaining);
+  json += "}";
+  return json;
 }
 
 /* -------------------- Missed feeding check [FIX 7] -------------------- */
@@ -475,42 +533,7 @@ void startDashboard(){
     });
 
     asyncServer.on("/status", HTTP_GET, [](AsyncWebServerRequest *r){
-      struct tm t; String timeStr = "--:--:--"; long epoch = 0;
-      if (WiFi.status() == WL_CONNECTED && getLocalTime(&t)){
-        char buf[20]; strftime(buf, sizeof(buf), "%H:%M:%S", &t);
-        timeStr = buf;
-        epoch = mktime(&t);
-      }
-      String ip   = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "AP Mode";
-      String ssid = (WiFi.status() == WL_CONNECTED) ? WiFi.SSID() : "Not connected";
-      int rssi    = (WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : 0;
-
-      String json = "{";
-      json += "\"time\":\""     + timeStr             + "\",";
-      json += "\"epoch\":"      + String(epoch)        + ",";
-      json += "\"ip\":\""       + ip                   + "\",";
-      json += "\"ssid\":\""     + jsonEscape(ssid)     + "\",";
-      json += "\"rssi\":"       + String(rssi)         + ",";
-      json += "\"lastFeed\":\"" + jsonEscape(lastFeed) + "\",";
-      json += "\"mh\":"  + String(mHour) + ",\"mm\":" + String(mMin) + ",";
-      json += "\"nh\":"  + String(nHour) + ",\"nm\":" + String(nMin) + ",";
-      json += "\"r1\":"  + String(relayState[0]) + ",";
-      json += "\"r2\":"  + String(relayState[1]) + ",";
-      json += "\"r3\":"  + String(relayState[2]) + ",";
-      json += "\"r4\":"  + String(relayState[3]) + ",";
-      json += "\"pumpOnMin\":"   + String(pumpOnDuration  / 60000UL) + ",";
-      json += "\"pumpOffMin\":"  + String(pumpOffDuration / 60000UL) + ",";
-      json += "\"pumpEnabled\":" + String(pumpTimerEnabled ? 1 : 0);
-
-      unsigned long remaining = 0;
-      if (pumpTimerEnabled){
-        unsigned long elapsed = millis() - pumpLastToggle;
-        unsigned long target  = relayState[1] ? pumpOnDuration : pumpOffDuration;
-        if (elapsed < target) remaining = (target - elapsed) / 1000UL;
-      }
-      json += ",\"pumpCountdown\":" + String(remaining);
-      json += "}";
-      r->send(200, "application/json", json);
+      r->send(200, "application/json", buildStatusJson());
     });
 
     asyncServer.on("/logsdata", HTTP_GET, [](AsyncWebServerRequest *r){
@@ -581,6 +604,39 @@ void startDashboard(){
         return;
       }
       r->send(400, "text/plain", "Bad Request");
+    });
+
+    asyncServer.on("/setCloud", HTTP_GET, [](AsyncWebServerRequest *r){
+      if (r->hasParam("url") && r->hasParam("id") && r->hasParam("key")){
+        cloudApiUrl   = r->getParam("url")->value();
+        cloudDeviceId = r->getParam("id")->value();
+        cloudApiKey   = r->getParam("key")->value();
+        cloudApiUrl.trim();
+        while (cloudApiUrl.endsWith("/")) cloudApiUrl.remove(cloudApiUrl.length() - 1);
+
+        prefs.begin("cloud", false);
+        prefs.putString("url", cloudApiUrl);
+        prefs.putString("id",  cloudDeviceId);
+        prefs.putString("key", cloudApiKey);
+        prefs.end();
+
+        lastCloudSync = 0; // sync immediately on next loop
+        pushLog("Cloud dashboard settings saved");
+        r->send(200, "text/plain", "OK");
+        return;
+      }
+      r->send(400, "text/plain", "Bad Request");
+    });
+
+    asyncServer.on("/cloudInfo", HTTP_GET, [](AsyncWebServerRequest *r){
+      String json = "{";
+      json += "\"url\":\"" + jsonEscape(cloudApiUrl) + "\",";
+      json += "\"id\":\""  + jsonEscape(cloudDeviceId) + "\",";
+      json += "\"configured\":" + String(cloudApiUrl.length() > 0 ? 1 : 0) + ",";
+      json += "\"synced\":" + String(cloudSyncOk ? 1 : 0) + ",";
+      json += "\"fw\":\"" + String(FW_VERSION) + "\"";
+      json += "}";
+      r->send(200, "application/json", json);
     });
 
     asyncServer.on("/resetWiFi", HTTP_GET, [](AsyncWebServerRequest *r){
@@ -661,6 +717,160 @@ void initCloud(){
   ArduinoCloud.addProperty(light,  READWRITE, ON_CHANGE, onLightChange);
   ArduinoCloud.addProperty(light1, READWRITE, ON_CHANGE, onLight1Change);
   ArduinoCloud.addProperty(light2, READWRITE, ON_CHANGE, onLight2Change);
+}
+
+/* -------------------- Custom cloud dashboard sync -------------------- */
+
+/* OTA firmware update. HTTPUpdate reboots the device itself on success. */
+void performOTA(const String &url, const String &version){
+  pushLog("OTA starting -> " + version);
+
+  WiFiClientSecure client;
+  // Certificate validation is skipped: pinning a CA on the device means every
+  // Cloudflare cert rotation would brick updates. The firmware image itself is
+  // the only thing fetched over this connection.
+  client.setInsecure();
+
+  httpUpdate.rebootOnUpdate(true);
+  t_httpUpdate_return result = httpUpdate.update(client, url);
+
+  switch (result){
+    case HTTP_UPDATE_FAILED:
+      pushLog("OTA FAILED: " + httpUpdate.getLastErrorString());
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      pushLog("OTA: server reported no update available");
+      break;
+    case HTTP_UPDATE_OK:
+      pushLog("OTA OK — rebooting"); // rarely reached; device reboots first
+      break;
+  }
+}
+
+void ackCloudCommand(const String &commandId){
+  if (cloudApiUrl.length() == 0) return;
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  String url = cloudApiUrl + "/api/devices/" + cloudDeviceId + "/commands/" + commandId + "/ack";
+  if (!http.begin(client, url)) return;
+  http.addHeader("X-Device-Key", cloudApiKey);
+  http.POST("");
+  http.end();
+}
+
+void applyCloudCommand(JsonObject cmd){
+  String id   = cmd["id"]   | "";
+  String type = cmd["type"] | "";
+  JsonObject p = cmd["payload"];
+
+  if (type == "relay"){
+    int relayId = p["id"] | 0;
+    bool on     = p["on"] | false;
+    if (relayId >= 1 && relayId <= 4){
+      setRelay(relayId, on);
+      pushLog("Cloud: relay " + String(relayId) + (on ? " ON" : " OFF"));
+    }
+  }
+  else if (type == "feed"){
+    startFeeding("Cloud");
+  }
+  else if (type == "set_schedule"){
+    int _mh = p["mh"] | -1, _mm = p["mm"] | -1;
+    int _nh = p["nh"] | -1, _nm = p["nm"] | -1;
+    if (_mh >= 0 && _mh <= 23 && _mm >= 0 && _mm <= 59 &&
+        _nh >= 0 && _nh <= 23 && _nm >= 0 && _nm <= 59){
+      mHour = _mh; mMin = _mm; nHour = _nh; nMin = _nm;
+      prefs.begin("sched", false);
+      prefs.putInt("mh", mHour); prefs.putInt("mm", mMin);
+      prefs.putInt("nh", nHour); prefs.putInt("nm", nMin);
+      prefs.end();
+      pushLog("Cloud: schedule updated");
+    } else pushLog("Cloud: invalid schedule values ignored");
+  }
+  else if (type == "set_pump_timer"){
+    int onMin  = p["on"]  | 0;
+    int offMin = p["off"] | 0;
+    if (onMin > 0 && offMin > 0){
+      pumpOnDuration   = (unsigned long)onMin  * 60000UL;
+      pumpOffDuration  = (unsigned long)offMin * 60000UL;
+      pumpTimerEnabled = p["enabled"] | true;
+      prefs.begin("pump", false);
+      prefs.putULong("on",  pumpOnDuration);
+      prefs.putULong("off", pumpOffDuration);
+      prefs.putBool("en",   pumpTimerEnabled);
+      prefs.end();
+      pushLog("Cloud: pump timer updated");
+    } else pushLog("Cloud: invalid pump timer values ignored");
+  }
+  else if (type == "reboot"){
+    pushLog("Cloud: reboot requested");
+    if (id.length()) ackCloudCommand(id);
+    pendingReboot = true;
+    return; // already acked
+  }
+  else if (type == "ota"){
+    String url     = p["url"]     | "";
+    String version = p["version"] | "";
+    if (url.length()){
+      // Ack before flashing — the device reboots mid-update and would never
+      // get the chance to ack afterwards.
+      if (id.length()) ackCloudCommand(id);
+      performOTA(url, version);
+      return;
+    }
+    pushLog("Cloud: OTA command missing url");
+  }
+  else {
+    pushLog("Cloud: unknown command type '" + type + "'");
+  }
+
+  if (id.length()) ackCloudCommand(id);
+}
+
+void cloudSync(){
+  if (cloudApiUrl.length() == 0 || cloudDeviceId.length() == 0) return;
+  if (WiFi.status() != WL_CONNECTED) return;
+  if (millis() - lastCloudSync < CLOUD_SYNC_INTERVAL) return;
+  lastCloudSync = millis();
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  String url = cloudApiUrl + "/api/devices/" + cloudDeviceId + "/status";
+
+  if (!http.begin(client, url)){
+    cloudSyncOk = false;
+    return;
+  }
+  http.setTimeout(8000);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-Device-Key", cloudApiKey);
+
+  int code = http.POST(buildStatusJson());
+  if (code != 200){
+    if (cloudSyncOk) pushLog("Cloud sync failed (HTTP " + String(code) + ")");
+    cloudSyncOk = false;
+    http.end();
+    return;
+  }
+
+  String body = http.getString();
+  http.end();
+
+  if (!cloudSyncOk) pushLog("Cloud dashboard connected");
+  cloudSyncOk = true;
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, body);
+  if (err){
+    pushLog("Cloud: bad response JSON");
+    return;
+  }
+
+  JsonArray commands = doc["commands"];
+  for (JsonObject cmd : commands) applyCloudCommand(cmd);
 }
 
 /* -------------------- Serial & Button helpers -------------------- */
@@ -764,6 +974,13 @@ void setup(){
   pumpTimerEnabled = prefs.getBool("en", true);
   prefs.end();
 
+  // Load custom cloud dashboard settings (empty = feature disabled)
+  prefs.begin("cloud", true);
+  cloudApiUrl   = prefs.getString("url", "");
+  cloudDeviceId = prefs.getString("id",  "");
+  cloudApiKey   = prefs.getString("key", "");
+  prefs.end();
+
   // [FIX 6] Restore relay states from Preferences
   prefs.begin("relays", true);
   for (int i = 1; i <= 4; i++){
@@ -821,6 +1038,11 @@ void setup(){
   // Note: relay states already restored above, but pump timer resets from now
   pumpLastToggle = millis();
 
+  if (cloudApiUrl.length() > 0)
+    pushLog("Cloud dashboard configured: " + cloudApiUrl);
+  else
+    pushLog("Cloud dashboard not configured (local only)");
+
   pushLog("Boot sequence complete");
 }
 
@@ -846,6 +1068,7 @@ void loop(){
 
   updateFeeding();
   updatePumpTimer();
+  cloudSync();
 
   // [FIX 3] Scheduled feeds — fires exactly once per scheduled minute
   static int lastFedMinute = -1;

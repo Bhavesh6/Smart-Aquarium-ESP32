@@ -1,0 +1,2 @@
+OWNER_PASSPHRASE=changeme
+COOKIE_SECRET=some-long-random-string
